@@ -21,44 +21,51 @@ class Coin:
         # упаковываем в датафрейм для облегчения дальнейшей работы
         for candle in range(limit):
             date_time = datetime.datetime.fromtimestamp(data[candle][0] / 1e3)
-            close_price = data[candle][4]
+            close_price = float(data[candle][4])
             new_df = pd.DataFrame({'Time': [date_time], f'{self}': [close_price]})
             df = pd.concat([df, new_df], ignore_index=True)
         return df
 
 
 # функция для расчета "амплитуды волатильности"
-def calculate_change(df, ticker):
-    current_price = df.iloc[-1][ticker]
-    result = False
+def calculate_change(symbol):
+   
+    
+    #загружаем цену 
+    data = Coin.get_coin_data(symbol)
 
-    for price in df[ticker][:-1]:
-        price_change = (float(current_price) - float(price)) / float(price) * 100
+    max_price = data.max()
+    min_price = data.min()
 
-        #используем R-squared из AccessmentModel чтобы вычислить скорректированное изменения цены ETHUSDT
-        #если R-squared = 0.69, то 69% изменений цена ETHUSDT может быть вызвано изменениями цена BTCUSDT
-        #скорректированное изменение цены ETH = желаемое "очищенное" изменение(1%) / 1 - R-squared
-        if abs(price_change) >= (0.01 / (1 - AccessmentModel.r_squared)) * 100:
-            result = True
-        return result
+    price_change = (max_price - min_price) / min_price
+    
+    if price_change >= (0.01 / (1 - AccessmentModel.r_squared)):
+        return True
+    
+    return False
+
+
+    #используем R-squared из AccessmentModel чтобы вычислить скорректированное изменения цены ETHUSDT
+    #если R-squared = 0.69, то 69% изменений цена ETHUSDT может быть вызвано изменениями цена BTCUSDT
+    #скорректированное изменение цены ETH = желаемое "очищенное" изменение(1%) / 1 - R-squared
+
+    return significant_changes.empty
 
 
 # прогоняем функцию по первичному датафрейму, далее в цикле каждую минуту по созданному новому датафрейму
 def monitor_changes(symbol, interval=60):
-    df = Coin.get_coin_data(symbol)
+    #df = Coin.get_coin_data(symbol)
 
-    if calculate_change(df, symbol):
-        print("Цена менялась более чем на 1% за прошедший час")
+    if calculate_change(symbol):
+        print("За час цена не менялась(на 1%+)")
     else:
-        print("За час цена не менялась")
+        print("Цена менялась более чем на 1% за прошедший час")
 
     while True:
 
         time.sleep(interval)
 
-        df = Coin.get_coin_data(symbol)
-        if calculate_change(df, symbol):
+        if not calculate_change(symbol):
             print("Цена изменилась более чем на 1%")
+        print("За час цена не менялась(на 1%+)")
 
-
-monitor_changes("ETHUSDT")
